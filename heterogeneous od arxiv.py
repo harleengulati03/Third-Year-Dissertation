@@ -1,7 +1,8 @@
 # A version of Sayama's (2020) model where each agent may have
 # their own parameter values for c, h, a, theta_h and theta_a
 
-import networkx as nx
+import networkx as nx 
+import matplotlib.pyplot as plt
 
 from random import random as random
 from random import normalvariate as normal
@@ -19,7 +20,7 @@ seed()
 
 # Main Parameters
 
-n  = 1000       # number of network nodes
+n  = 100       # number of network nodes
 T  = 1000       # number of time steps
 Dt = 0.1        # size of each time step
 II = 10         # number of replicates to run
@@ -43,7 +44,7 @@ def get_param(dist_params, distribution="uniform"):
 
     if "normal" in distribution:
         val = normal(a,b)
-        return min(0.3, max(val,0.0)) # clip the value to lie in the range [0.0,0.3]
+        return min(0.3, max(val,0.0)) # clip the value to lie in the range [0.0,0.3] (not sure)
 
     return uniform(a,b)
 
@@ -52,10 +53,10 @@ def get_param(dist_params, distribution="uniform"):
 def initialize():
     global g
 
-    g = nx.complete_graph(n).to_directed()
+    g = nx.complete_graph(n).to_directed() # create directed graph with 100 nodes
 
     for i in g.nodes:
-        g.nodes[i]['state'] = normal(0, 1)
+        g.nodes[i]['state'] = normal(0, 1) # each node's opinion
 
         g.nodes[i]['c'] = get_param(c_range, distribution=distribution)
         g.nodes[i]['h'] = get_param(h_range, distribution=distribution)
@@ -64,9 +65,9 @@ def initialize():
         g.nodes[i]['theta_a'] = get_param(theta_a_range, distribution="fixed")
 
     for i, j in g.edges:
-        g[i][j]['weight'] = random()
+        g[i][j]['weight'] = random() # random weight value in range [0,1] 
 
-    g.pos = nx.spring_layout(g, weight='weight', k=0.3)
+    g.pos = nx.spring_layout(g, weight='weight', k=0.3) # read into this further
 
 
 # update the weights and internal state of every node in a network
@@ -90,15 +91,15 @@ def update():
             # neophily
             for j in nbs:
                 diff = abs(av - g.nodes[j]['state'])
-                max_diff = min([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
+                #max_diff = min([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
                 g[i][j]['weight'] += g.nodes[i]['a'] * (diff - g.nodes[i]['theta_a']) * Dt
 
         # homophily
         for j in nbs:
             diff = abs(g.nodes[i]['state'] - g.nodes[j]['state'])
-            max_diff = max([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
-            min_diff = min([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
-            mean_diff = sum([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])/D
+            #max_diff = max([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
+            #min_diff = min([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
+            #mean_diff = sum([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])/D
 
             # diff is going to be a function of two vectors?
             g[i][j]['weight'] += g.nodes[i]['h'] * (g.nodes[i]['theta_h'] - diff) * Dt
@@ -109,9 +110,12 @@ def update():
         # random drift
         g.nodes[i]['state'] += normal(0, epsilon)
 
-
+homophoity_avgs = []
+neophlic_avgs = []
+conformity_avgs = []
+reps = [i for i in range(1,II)]
 # loop over II independent replicates of the same network construction process
-for ii in range(II):
+for ii in range(1):
     # construct an appropriate filename; we assume that the directory "output" exists
     filename = f"output/{n}-{T}-{Dt}-{distribution}-{c_range[0]}-{c_range[1]}-{h_range[0]}-{h_range[1]}-{a_range[0]}-{a_range[1]}-{theta_h_range[0]}-{theta_h_range[1]}-{theta_a_range[0]}-{theta_a_range[1]}-{ii}.pkl"
 
@@ -126,16 +130,13 @@ for ii in range(II):
             if tt % t == 0:
                 print(tt, end=' ')
             update()
-
         print('')
         end_time = time.time()
         print("elapsed time: {:.2f}".format(end_time - start_time))
-
+        #pos = nx.spring_layout(g)
+        #nx.draw_networkx_nodes(g, pos)
+        #nx.draw_networkx_labels(g, pos)
+        #nx.draw_networkx_edges(g, pos)
+        #plt.show()
         # pickle the final network and dump it to disk
         pickle.dump(g, open(filename, 'wb'))
-
-
-
-
-
-
