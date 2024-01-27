@@ -186,4 +186,13 @@ for ii in range(1):
         avg_edge_weight, com, mod_com, range_com, sd_com = get_parameter_values(g_undirected)
         print(avg_edge_weight, com, mod_com, range_com, sd_com)
         # pickle the final network and dump it to disk
-        # pickle.dump(g, open(filename, 'wb'))
+        pickle.dump(g_undirected, open(filename, 'wb'))
+
+        network_pickle = open (filename, "rb")
+        network = pickle.load(network_pickle)
+        avg_edge_weight, com, mod_com, range_com, sd_com = get_parameter_values(network)
+        print(avg_edge_weight, com, mod_com, range_com, sd_com)
+
+
+
+
