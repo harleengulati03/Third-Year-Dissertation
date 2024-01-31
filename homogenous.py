@@ -106,17 +106,17 @@ def update():
         # random drift
         g.nodes[i]['state'] += normal(0, epsilon)
 
-def get_parameter_values(h):
+def get_parameter_values(dir_graph):
 
-    # gets average edge weight (sum of all edge weights / total number of edge weights)
+    # gets average edge weight of undirected graph (sum of all edge weights / total number of edge weights)
     sum_edgw = 0
     num_edgw = 0
-    edge_list = [h[i][j]['weight'] for i, j in h.edges()] # list of edge weights
+    edge_list = [dir_graph[i][j]['weight'] for i, j in dir_graph.edges()] # list of edge weights
     for edge in edge_list: 
         sum_edgw += edge 
         num_edgw += 1 
     avg_edgw = sum_edgw / num_edgw # average edge weight
-
+    h = convert(dir_graph) # converts the directed network to an undirected network for community analysis
     nodescomms = community_louvain.best_partition(h) # gets the node and its community using the Louvain modularity maximisation method 
     comms = list(dict.fromkeys(list(nodescomms.values()))) # gets only the community
     num_comms = len(comms) # get the number of communities
@@ -142,20 +142,20 @@ def get_parameter_values(h):
     std_avgcommstate = sum([((comm - avg_avgcommstate) ** 2) for comm in avgcommstates]) / len(avgcommstates) ** 0.5 
     return avg_edgw, num_comms, mod, range_avgcomm, std_avgcommstate
 
-def convert(g):
+def convert(dir):
     # converts directed graph to undirected graph 
     # by averaging weight of two directed edges between a pair of nodes into one undirected weight
     h = nx.complete_graph(n) # undirected version of directed graph => same no. of nodes
     for i in h.nodes:
-        h.nodes[i]['state'] = g.nodes[i]['state'] # each node i has the same opinion as directed graph
-        h.nodes[i]['c'] = g.nodes[i]['c'] # each node i has the same parameter value as directed graph
-        h.nodes[i]['h'] = g.nodes[i]['h']
-        h.nodes[i]['a'] = g.nodes[i]['a']
-        h.nodes[i]['theta_h'] = g.nodes[i]['theta_h']
-        g.nodes[i]['theta_a'] = g.nodes[i]['theta_a']
+        h.nodes[i]['state'] = dir.nodes[i]['state'] # each node i has the same opinion as directed graph
+        h.nodes[i]['c'] = dir.nodes[i]['c'] # each node i has the same parameter value as directed graph
+        h.nodes[i]['h'] = dir.nodes[i]['h']
+        h.nodes[i]['a'] = dir.nodes[i]['a']
+        h.nodes[i]['theta_h'] = dir.nodes[i]['theta_h']
+        h.nodes[i]['theta_a'] = dir.nodes[i]['theta_a']
     for i, j in h.edges:
-        itoj = g[i][j]['weight']
-        jtoi = g[j][i]['weight']
+        itoj = dir[i][j]['weight']
+        jtoi = dir[j][i]['weight']
         if itoj > 0 and jtoi > 0: # if pair of nodes have two edges, then average the weights 
             avg = (itoj+jtoi) / 2
             h[i][j]['weight'] = avg 
@@ -182,17 +182,15 @@ for ii in range(1):
         print('')
         end_time = time.time()
         print("elapsed time: {:.2f}".format(end_time - start_time))
-        g_undirected = convert(g)
-        avg_edge_weight, com, mod_com, range_com, sd_com = get_parameter_values(g_undirected)
+        avg_edge_weight, com, mod_com, range_com, sd_com = get_parameter_values(g)
         print(avg_edge_weight, com, mod_com, range_com, sd_com)
         # pickle the final network and dump it to disk
-        pickle.dump(g_undirected, open(filename, 'wb'))
+        pickle.dump(g, open(filename, 'wb')) # dump directed network to disk
 
         network_pickle = open (filename, "rb")
         network = pickle.load(network_pickle)
         avg_edge_weight, com, mod_com, range_com, sd_com = get_parameter_values(network)
         print(avg_edge_weight, com, mod_com, range_com, sd_com)
-
 
 
 
