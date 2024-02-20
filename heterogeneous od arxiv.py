@@ -3,12 +3,18 @@
 
 import networkx as nx 
 import matplotlib.pyplot as plt
+import csv 
+from csv import writer
+
 
 from random import random as random
 from random import normalvariate as normal
 from random import uniform as uniform
 from random import shuffle as shuffle
 from random import seed as seed
+from csv import DictWriter
+
+
 
 import time
 
@@ -114,8 +120,27 @@ homophoity_avgs = []
 neophlic_avgs = []
 conformity_avgs = []
 reps = [i for i in range(1,II)]
+
+field_names = ['c', 'h']
+
 # loop over II independent replicates of the same network construction process
 for ii in range(1):
+    dictsample = [{'c':5, 'h':3}, {'c':7, 'h':2}, {'c':1, 'h':1}]
+    
+    with open('statistics.csv', 'w') as file:
+        writer_object = writer(file)
+        writer_object.writerow(field_names)
+        for dict in dictsample:
+            dictwriter_object = DictWriter(file ,fieldnames=field_names)
+            dictwriter_object.writerow(dict)
+    file.close()
+    for dict in dictsample:
+
+        with open('statistics.csv', 'a') as file:
+            writer_object = writer(file)
+            writer_object.writerow([11,11])
+    file.close()
+    
     # construct an appropriate filename; we assume that the directory "output" exists
     filename = f"output/{n}-{T}-{Dt}-{distribution}-{c_range[0]}-{c_range[1]}-{h_range[0]}-{h_range[1]}-{a_range[0]}-{a_range[1]}-{theta_h_range[0]}-{theta_h_range[1]}-{theta_a_range[0]}-{theta_a_range[1]}-{ii}.pkl"
 
