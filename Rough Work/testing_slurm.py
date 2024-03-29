@@ -98,7 +98,7 @@ def get_statistics(dir_graph):
 
     # find standard deviation of average community states 
     avg_avgcommstate = sum(avgcommstates) / len(avgcommstates) # finds average of all community's average state 
-    std_avgcommstate = sum([((comm - avg_avgcommstate) ** 2) for comm in avgcommstates]) / len(avgcommstates) ** 0.5 
+    std_avgcommstate = (sum([((comm - avg_avgcommstate) ** 2) for comm in avgcommstates]) / len(avgcommstates)) ** 0.5 
     return avg_edgw, num_comms, mod, range_avgcomm, std_avgcommstate
 
 # convert directed network to undirected network
@@ -135,8 +135,8 @@ def initialize(c, h, a, theta_h, theta_a):
         g.nodes[i]['c'] = c 
         g.nodes[i]['h'] = h
         g.nodes[i]['a'] = a 
-        g.nodes[i]['theta_h'] = theta_a
-        g.nodes[i]['theta_a'] = theta_h
+        g.nodes[i]['theta_h'] = theta_h
+        g.nodes[i]['theta_a'] = theta_a
 
     for i, j in g.edges:
         g[i][j]['weight'] = random() # random weight value in range [0,1]

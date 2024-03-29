@@ -17,8 +17,9 @@ II = 5 #  number of runs per combination
 vals = [0.01,0.03,0.1,0.3] # possible values we sweep over 
 T  = 1000       # number of time steps
 Dt = 0.1        # size of each time step
-n = 100         # number of opinion states
+n = 100       # number of opinion states
 epsilon  = 0.1  # scale of random drift
+D = 2
 
 # create a list of dictionaries, where each element of the list contains a parameter combination
 for c in vals:
@@ -40,8 +41,7 @@ def get_para_values(start, end):
 
 # builds the network and dumps in a pickle file
 def build(c, h, a, theta_h, theta_a):
-
-    for ii in range(II):
+    for ii in range(1):
         filename = f"output/{c}-{h}-{a}-{theta_h}-{theta_a}-{ii}.pkl"
 
         if os.path.exists(filename): 
@@ -49,7 +49,7 @@ def build(c, h, a, theta_h, theta_a):
         else:
             start_time = time.time()
             print("Running", filename, "... ", end='')
-            initialize(c, h, a, theta_h, theta_a)
+            initialize(c, h, a, theta_h, theta_a, "max", "min")
             t = T / 100
             for tt in range(T): # complete T steps, each lasting time Dt
                 if tt % t == 0:
@@ -58,16 +58,17 @@ def build(c, h, a, theta_h, theta_a):
             print('')
             end_time = time.time()
             print("elapsed time: {:.2f}".format(end_time - start_time))
-            avg_edgw, com, mod_com, avg_com, sd_com = get_statistics(g)
-            store_statistics(ii, c, h, a, theta_h, theta_a, avg_edgw, com, mod_com, avg_com, sd_com)
-            pickle.dump(g, open(filename, 'wb'))
+            get_statistics(g)
+            #store_statistics(ii, c, h, a, theta_h, theta_a, avg_edgw, com, mod_com, range_avg_com, sd_avg_com)
+            #pickle.dump(g, open(filename, 'wb'))
 
-# append new statistics to already existing csv file
-def store_statistics(ii, c, h, a, theta_h, theta_a, avg_edgw, com, mod_com, avg_com, sd_com):
-    with open('statistics.csv', 'a') as stats:
+
+def store_statistics(ii, c, h, a, theta_h, theta_a, avg_edgw, com, mod_com, range_avg_com, sd_avg_com):
+    with open('max_min.csv', 'a') as stats:
         writer_object = writer(stats)
-        writer_object.writerow([ii, c, h, a, theta_h, theta_a, avg_edgw, com, mod_com, avg_com, sd_com])
+        writer_object.writerow([ii, c, h, a, theta_h, theta_a, avg_edgw, com, mod_com, range_avg_com, sd_avg_com])
     stats.close()
+
 
 # get statistics of a network
 def get_statistics(dir_graph):
@@ -80,6 +81,9 @@ def get_statistics(dir_graph):
         sum_edgw += edge 
         num_edgw += 1 
     avg_edgw = sum_edgw / num_edgw # average edge weight
+    print("SUM OF EDGE WEIGHTS ", sum_edgw)
+    print("NUM OF EDGE WEIGHTS ", num_edgw)
+    print("AVERAGE EDGE WEIGHT IS ", avg_edgw)
     h = convert(dir_graph) # converts the directed network to an undirected network for community analysis
     nodescomms = community_louvain.best_partition(h) # gets the node and its community using the Louvain modularity maximisation method 
     comms = list(dict.fromkeys(list(nodescomms.values()))) # gets only the community
@@ -90,21 +94,29 @@ def get_statistics(dir_graph):
     nodesgroupedlist = list(nodesgrouped.values()) # turns this grouping into a list
     mod = nx.community.modularity(h, nodesgroupedlist) # gets the modularity of communities 
 
-    # finds the average community state  
-    avgcommstates = [] # average state of each community 
-    for comm in nodesgroupedlist:
-        sumstates = 0
-        numstates = 0
-        for i in comm:
-            sumstates += h.nodes[i]['state']
-            numstates += 1 
-        avgcommstates.append(sumstates/numstates)
-    range_avgcomm = max(avgcommstates) - min(avgcommstates)
+    range_avgcomms = [] # range in each dimension
+    stds_avgcomms = [] # standard deviation in each dimension
+    for d in range(D):
+        avgcommstates = [] # average state of each community
+        for comm in nodesgroupedlist: 
+            sumstates = 0
+            numstates = 0
+            for i in comm:
+                sumstates += h.nodes[i]['state'][d]
+                numstates += 1
+            avgcommstates.append(sumstates/numstates)
+        range_avgcomms.append(max(avgcommstates) - min(avgcommstates))
 
-    # find standard deviation of average community states 
-    avg_avgcommstate = sum(avgcommstates) / len(avgcommstates) # finds average of all community's average state 
-    std_avgcommstate = sum([((comm - avg_avgcommstate) ** 2) for comm in avgcommstates]) / len(avgcommstates) ** 0.5 
-    return avg_edgw, num_comms, mod, range_avgcomm, std_avgcommstate
+        avg_avgcommstate = sum(avgcommstates) / len(avgcommstates) # finds average of all community's average state 
+        var_avgcommstate = (1/len(avgcommstates)) * sum([((avgcommstate - avg_avgcommstate) ** 2) for avgcommstate in avgcommstates])
+        std_avgcommstate = var_avgcommstate ** 0.5 # standard deviation in each dimension
+        stds_avgcomms.append(std_avgcommstate)
+
+    range_avgcomm = sum(range_avgcomms) / len(range_avgcomms)
+    std_avgcommstate = sum(stds_avgcomms) / len(stds_avgcomms)
+
+    print(avg_edgw, num_comms, mod, range_avgcomm, std_avgcommstate)
+
 
 # convert directed network to undirected network
 def convert(dir):
@@ -121,30 +133,46 @@ def convert(dir):
     for i, j in h.edges:
         itoj = dir[i][j]['weight']
         jtoi = dir[j][i]['weight']
-        if itoj > 0 and jtoi > 0: # if pair of nodes have two edges, then average the weights 
-            avg = (itoj+jtoi) / 2
-            h[i][j]['weight'] = avg 
-        else:
-            h[i][j]['weight'] = max(itoj, jtoi) # otherwise take the edge with weight not equal to 0
+        avg = (itoj+jtoi) / 2
+        h[i][j]['weight'] = avg 
     return h
 
 # initialise the network with random opinions and connections
-def initialize(c, h, a, theta_h, theta_a):
+def initialize(c, h, a, theta_h, theta_a, h_update, a_update): # add h_strat and a_strat
     global g
 
     g = nx.complete_graph(n).to_directed() # create directed graph with 100 nodes
 
-    for i in g.nodes:
-        g.nodes[i]['state'] = normal(0, 1) # each node's opinion
+    for i in g.nodes: # first point of change made here ! 
+        g.nodes[i]['state'] = [0] * D
 
+        for d in range(D):
+
+            g.nodes[i]['state'][d] += normal(0, 1) # each node's opinion
+
+        # give each node two "updaters": h_update and a_update
+        # each of which can be a string like "max", "min", "avg"
+        # if h_strat=="rnd": g.nodes[i]['h_update] == choice(["max", "min", "avg"])
+        # if a_strat=="rnd": g.nodes[i]['a_update] == choice(["max", "min", "avg"])
+        # minmin, minmax, maxmin, maxmax, avgavg, rndrnd
         g.nodes[i]['c'] = c 
         g.nodes[i]['h'] = h
         g.nodes[i]['a'] = a 
-        g.nodes[i]['theta_h'] = theta_a
-        g.nodes[i]['theta_a'] = theta_h
+        g.nodes[i]['theta_h'] = theta_h
+        g.nodes[i]['theta_a'] = theta_a
+        g.nodes[i]['h_up'] = h_update
+        g.nodes[i]['a_up'] = a_update
 
     for i, j in g.edges:
         g[i][j]['weight'] = random() # random weight value in range [0,1]
+    
+    opinions = [g.nodes[i]['state'] for i in g.nodes]
+    opinions.sort(reverse=True)
+    weights = [g[i][j]['weight'] for i, j in g.edges]
+    weights.sort(reverse=True)
+    #print("THE OPINIONS ARE ", opinions)
+    #print("THE WEIGHTS ARE ", weights)
+    print(len(g))
 
 # updates opinions and connections
 def update():
@@ -157,40 +185,59 @@ def update():
         nbs = list(g.neighbors(i))
 
         total = sum(g[i][j]['weight'] for j in nbs) # the total incoming weights to node i
-
+        
         if total > 0:
-            # conformity
-            av = sum(g[i][j]['weight'] * g.nodes[j]['state'] for j in nbs) / total
-            g.nodes[i]['state'] += g.nodes[i]['c'] * (av - g.nodes[i]['state']) * Dt
 
-            # neophily
+            avs = [] # stores local average in each dimension
+            for d in range(D):
+                avs.append(sum(g[i][j]['weight'] * g.nodes[j]['state'][d] for j in nbs) / total)
+            
+
+            # conformity
+            # iterate over the D dimensions applying conformity to each one
+            for d in range(D):
+                g.nodes[i]['state'][d] += g.nodes[i]['c'] * (avs[d] - g.nodes[i]['state'][d]) * Dt
+
+            # neophily
             for j in nbs:
-                diff = abs(av - g.nodes[j]['state'])
+                diffs = [] # differences of node j from local average in each dimension
+                for d in range(D):
+                    diffs.append(abs(avs[d] - g.nodes[j]['state'][d])) # calculated how far j is from local average in each dimension
+                if g.nodes[i]['a_up'] == "max":
+                    diff = max(diffs)
+                else:
+                    diff = min(diffs)
+                #print("DIFF NEO IS ", diff)
+                # diff = min(diffs) # dim with smaller difference
                 #max_diff = min([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
                 g[i][j]['weight'] += g.nodes[i]['a'] * (diff - g.nodes[i]['theta_a']) * Dt
+            #afterneo = [g[i][j]['weight'] for i, j in g.edges]
+            #print("AFTER NEOPHILY WEIGHTS ARE" , afterneo)
 
         # homophily
         for j in nbs:
-            diff = abs(g.nodes[i]['state'] - g.nodes[j]['state'])
-            #max_diff = max([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
-            #min_diff = min([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])
-            #mean_diff = sum([abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)])/D
+            diffs = [abs(g.nodes[i]['state'][d] - g.nodes[j]['state'][d]) for d in range(D)] # stores difference between node i and j in each dimension
+            if g.nodes[i]['h_up'] == "max":
+                diff = max(diffs)
+            else:
+                diff = min(diffs)
 
-            # diff is going to be a function of two vectors?
             g[i][j]['weight'] += g.nodes[i]['h'] * (g.nodes[i]['theta_h'] - diff) * Dt
-
+            #("DIFF IS ", diff)
             if g[i][j]['weight'] < 0:
                 g[i][j]['weight'] = 0
 
-        # random drift
-        g.nodes[i]['state'] += normal(0, epsilon)
+        #afterhomo = [g[i][j]['weight'] for i, j in g.edges]
+        #print("AFTER HOMOPHILY WEIGHTS ARE ", afterhomo)
+
+        for d in range(D):
+            g.nodes[i]['state'][d] += normal(0, epsilon)
+    
+    
+
 
 def main():
-    args = sys.argv[1:] # gets command line arguments in a list
-    slice = args[0]
-    # need to check the arguments for validity (do later)
-    start = (int(slice) - 1) * 32
-    end = start + 31
-    get_para_values(start, end) 
+    # build(0.1, 0.1, 0.1, 0.1, 0.1)
+    build(0.01, 0.3, 0.01, 0.1, 0.1)
 
 main()
